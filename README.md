@@ -12,6 +12,34 @@ Stack:
 - Hugging Face embeddings (`sentence-transformers/all-MiniLM-L6-v2`)
 - FAISS vector store (local disk)
 
+## Architecture
+```text
+              +---------------------------+
+              |        Client/UI          |
+              | curl / app / Swagger UI   |
+              +-------------+-------------+
+                            |
+                            v
+                 +----------+----------+
+                 |      FastAPI API    |
+                 | /ingest /ask /health|
+                 +----------+----------+
+                            |
+            +---------------+----------------+
+            |                                |
+            v                                v
++-----------+-----------+          +---------+---------+
+| Ingestion + Chunking  |          | Retrieval Service |
+| Recursive splitter    |          | top_k + threshold |
++-----------+-----------+          +---------+---------+
+            |                                |
+            v                                v
++-----------+-----------+          +---------+---------+
+| JSONL Knowledge Store |          |   FAISS Index     |
+| data/knowledge.jsonl  |          |  data/index/      |
++-----------------------+          +-------------------+
+```
+
 ## Run In 2 Minutes (Docker)
 ```bash
 git clone https://github.com/danieloza/rag-api-starter.git
@@ -96,6 +124,19 @@ pip install -r requirements-dev.txt
 pytest -q
 ```
 
+## Trade-offs
+- `FAISS` over `Chroma`: zero external service and fast local startup; less convenient metadata filtering and persistence UX than full DB-backed options.
+- `all-MiniLM-L6-v2` embeddings: good speed/quality for laptop CPU; lower semantic quality than larger embedding models.
+- `chunk_size=400`, `chunk_overlap=60`: balanced recall and latency for short business docs; longer docs may need bigger chunks or hierarchical retrieval.
+- Basic answer assembly from retrieved snippets: predictable and cheap, but no generation-grade reasoning or synthesis yet.
+
+## Roadmap
+- Add reranking step (`cross-encoder`) after initial vector retrieval for better precision.
+- Add query/result cache (Redis or in-memory TTL) to reduce repeated retrieval cost.
+- Add auth layer (API key or JWT) and per-tenant document isolation.
+- Add background ingestion queue for bigger files and async indexing.
+- Add richer eval set and regression benchmarks for retrieval quality.
+
 ## API Contracts
 - `POST /ingest` (multipart form)
   - `file` (required for document upload)
@@ -121,6 +162,6 @@ Example `/ask` response:
 - `data/` - local FAISS index + knowledge store
 
 ## Release and License
-- Release: `v0.1.1`
+- Releases: `v0.1.0` (initial), `v0.1.1` (latest)
 - License: `MIT` (see `LICENSE`)
 - Changelog: `CHANGELOG.md`
