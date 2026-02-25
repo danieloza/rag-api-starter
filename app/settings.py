@@ -14,10 +14,8 @@ class Settings(BaseSettings):
     docs_store_file: Path = data_dir / "knowledge.jsonl"
     index_dir: Path = data_dir / "index"
 
-    rag_fake_mode: bool = True
-
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
-    llm_model: str = "google/flan-t5-small"
+    embedding_device: str = "cpu"
 
     chunk_size: int = 400
     chunk_overlap: int = 60

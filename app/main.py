@@ -1,7 +1,7 @@
-﻿from fastapi import FastAPI, HTTPException
+﻿from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 
 from app.rag_service import RAGService
-from app.schemas import AskRequest, AskResponse, HealthResponse, IngestRequest, IngestResponse
+from app.schemas import AskRequest, AskResponse, HealthResponse, IngestResponse
 from app.settings import settings
 
 
@@ -15,10 +15,32 @@ def health() -> HealthResponse:
 
 
 @app.post("/ingest", response_model=IngestResponse)
-def ingest(payload: IngestRequest) -> IngestResponse:
+async def ingest(
+    file: UploadFile | None = File(default=None),
+    text: str | None = Form(default=None),
+    source: str | None = Form(default=None),
+) -> IngestResponse:
+    if file is None and (text is None or not text.strip()):
+        raise HTTPException(status_code=400, detail="Provide either 'file' or non-empty 'text'.")
+
+    document_text = ""
+    resolved_source = source.strip() if source else "manual"
+
     try:
-        doc_id, total_docs, index_updated = service.ingest(text=payload.text, source=payload.source)
+        if file is not None:
+            file_bytes = await file.read()
+            document_text = file_bytes.decode("utf-8-sig", errors="ignore").strip()
+            if not document_text:
+                raise HTTPException(status_code=400, detail="Uploaded file is empty or not UTF-8 text.")
+            if not source:
+                resolved_source = file.filename or "upload"
+        else:
+            document_text = text.strip()
+
+        doc_id, total_docs, index_updated = service.ingest(text=document_text, source=resolved_source)
         return IngestResponse(document_id=doc_id, total_documents=total_docs, index_updated=index_updated)
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 

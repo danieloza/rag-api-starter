@@ -1,0 +1,2 @@
+﻿Daniel builds Python backend systems with FastAPI, CI workflows, and automation bots for real operations.
+His projects include multi-tenant APIs, security controls, and reporting automation.

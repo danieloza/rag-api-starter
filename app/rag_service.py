@@ -2,19 +2,32 @@
 import threading
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
 
 from langchain_core.documents import Document
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
-from langchain_community.embeddings import FakeEmbeddings
 
 from app.settings import settings
+
+
+def _detect_device() -> str:
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            return "cuda"
+        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            return "mps"
+    except Exception:
+        pass
+    return "cpu"
 
 
 class RAGService:
     def __init__(self) -> None:
         self._lock = threading.Lock()
+        self._embeddings: HuggingFaceEmbeddings | None = None
         self._ensure_storage()
 
     def _ensure_storage(self) -> None:
@@ -51,45 +64,15 @@ class RAGService:
             for row in rows
         ]
 
-    def _get_embeddings(self):
-        if settings.rag_fake_mode:
-            return FakeEmbeddings(size=384)
-
-        from langchain_huggingface import HuggingFaceEmbeddings
-
-        return HuggingFaceEmbeddings(
-            model_name=settings.embedding_model,
-            encode_kwargs={"normalize_embeddings": True},
-        )
-
-    def _build_prompt(self, context: str, question: str) -> str:
-        return (
-            "You are a retrieval assistant. Use only the context to answer. "
-            "If context is insufficient, say what is missing.\n\n"
-            f"Context:\n{context}\n\n"
-            f"Question:\n{question}\n\n"
-            "Answer:"
-        )
-
-    def _generate_answer(self, question: str, context: str) -> str:
-        if settings.rag_fake_mode:
-            summary = context[:400].replace("\n", " ").strip()
-            if not summary:
-                return "No relevant context found in the current index."
-            return f"FAKE_MODE answer: based on indexed context -> {summary}"
-
-        from langchain_huggingface import HuggingFacePipeline
-        from transformers import pipeline
-
-        prompt = self._build_prompt(context=context, question=question)
-        generator = pipeline(
-            task="text2text-generation",
-            model=settings.llm_model,
-            max_new_tokens=220,
-            do_sample=False,
-        )
-        llm = HuggingFacePipeline(pipeline=generator)
-        return llm.invoke(prompt)
+    def _get_embeddings(self) -> HuggingFaceEmbeddings:
+        if self._embeddings is None:
+            device = settings.embedding_device or _detect_device()
+            self._embeddings = HuggingFaceEmbeddings(
+                model_name=settings.embedding_model,
+                model_kwargs={"device": device},
+                encode_kwargs={"normalize_embeddings": True},
+            )
+        return self._embeddings
 
     def _split_documents(self, docs: list[Document]) -> list[Document]:
         splitter = RecursiveCharacterTextSplitter(
@@ -144,8 +127,12 @@ class RAGService:
         retriever = vector_store.as_retriever(search_kwargs={"k": used_top_k})
         docs = retriever.invoke(question)
 
-        context = "\n\n".join(doc.page_content for doc in docs)
-        answer = self._generate_answer(question=question, context=context)
+        if not docs:
+            return "No relevant context found in the indexed documents.", [], used_top_k
+
+        context_snippets = [doc.page_content.strip().replace("\n", " ") for doc in docs[:2]]
+        merged = " ".join(context_snippets)
+        answer = f"Based on retrieved context: {merged[:500]}"
 
         sources = sorted({str(doc.metadata.get("source", "manual")) for doc in docs})
         return answer, sources, used_top_k
@@ -155,8 +142,7 @@ class RAGService:
         return {
             "status": "ok",
             "ready": self._index_exists(),
-            "fake_mode": settings.rag_fake_mode,
             "documents": docs,
             "embedding_model": settings.embedding_model,
-            "llm_model": settings.llm_model,
+            "vector_store": "faiss",
         }
