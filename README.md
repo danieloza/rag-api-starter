@@ -12,6 +12,11 @@ Stack:
 - Hugging Face embeddings (`sentence-transformers/all-MiniLM-L6-v2`)
 - FAISS vector store (local disk)
 
+## Live Proof (Swagger)
+`/docs` running locally:
+
+![Swagger docs](docs/assets/demo-docs.png)
+
 ## Architecture
 ```text
               +---------------------------+
@@ -110,10 +115,6 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8010/ask -ContentType 'appl
 ```
 
 ## Demo Proof
-Swagger/API docs:
-
-![Swagger docs](docs/assets/demo-docs.png)
-
 Health endpoint:
 
 ![Health endpoint](docs/assets/demo-health.png)
