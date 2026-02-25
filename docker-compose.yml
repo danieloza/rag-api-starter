@@ -1,0 +1,14 @@
+services:
+  rag-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rag-api-starter
+    ports:
+      - "8010:8010"
+    volumes:
+      - rag_data:/app/data
+    restart: unless-stopped
+
+volumes:
+  rag_data:

@@ -12,7 +12,18 @@ Stack:
 - Hugging Face embeddings (`sentence-transformers/all-MiniLM-L6-v2`)
 - FAISS vector store (local disk)
 
-## Run Locally (2 Minutes)
+## Run In 2 Minutes (Docker)
+```bash
+git clone https://github.com/danieloza/rag-api-starter.git
+cd rag-api-starter
+docker compose up --build
+```
+
+Open:
+- `http://127.0.0.1:8010/docs`
+- `http://127.0.0.1:8010/health`
+
+## Run Locally (Python)
 ```bash
 git clone https://github.com/danieloza/rag-api-starter.git
 cd rag-api-starter
@@ -99,6 +110,6 @@ Example `/ask` response:
 - `data/` - local FAISS index + knowledge store
 
 ## Release and License
-- Release: `v0.1.0`
+- Release: `v0.1.1`
 - License: `MIT` (see `LICENSE`)
 - Changelog: `CHANGELOG.md`
