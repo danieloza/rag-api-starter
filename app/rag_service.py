@@ -3,10 +3,10 @@ import threading
 import uuid
 from datetime import datetime, timezone
 
+from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import FAISS
 
 from app.settings import settings
 
@@ -117,6 +117,7 @@ class RAGService:
 
         used_top_k = top_k if top_k is not None else settings.retrieval_k
         used_top_k = max(1, min(used_top_k, settings.max_top_k))
+        min_score = settings.retrieval_score_threshold
 
         embeddings = self._get_embeddings()
         vector_store = FAISS.load_local(
@@ -124,17 +125,25 @@ class RAGService:
             embeddings,
             allow_dangerous_deserialization=True,
         )
-        retriever = vector_store.as_retriever(search_kwargs={"k": used_top_k})
-        docs = retriever.invoke(question)
 
-        if not docs:
-            return "No relevant context found in the indexed documents.", [], used_top_k
+        scored_docs = vector_store.similarity_search_with_relevance_scores(
+            question,
+            k=used_top_k,
+        )
+        filtered_docs = [doc for doc, score in scored_docs if score is not None and score >= min_score]
 
-        context_snippets = [doc.page_content.strip().replace("\n", " ") for doc in docs[:2]]
+        if not filtered_docs:
+            return (
+                f"No context passed threshold {min_score:.2f}. Try lowering threshold or ingesting richer documents.",
+                [],
+                used_top_k,
+            )
+
+        context_snippets = [doc.page_content.strip().replace("\n", " ") for doc in filtered_docs[:2]]
         merged = " ".join(context_snippets)
         answer = f"Based on retrieved context: {merged[:500]}"
 
-        sources = sorted({str(doc.metadata.get("source", "manual")) for doc in docs})
+        sources = sorted({str(doc.metadata.get("source", "manual")) for doc in filtered_docs})
         return answer, sources, used_top_k
 
     def health(self) -> dict:
@@ -145,4 +154,5 @@ class RAGService:
             "documents": docs,
             "embedding_model": settings.embedding_model,
             "vector_store": "faiss",
+            "retrieval_score_threshold": settings.retrieval_score_threshold,
         }

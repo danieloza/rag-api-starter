@@ -55,6 +55,11 @@ Open:
 - `http://127.0.0.1:8010/docs`
 - `http://127.0.0.1:8010/health`
 
+Retrieval tuning lives in `.env`:
+- `RETRIEVAL_K`
+- `RETRIEVAL_SCORE_THRESHOLD`
+- `MAX_TOP_K`
+
 ## End-to-End Demo Flow
 Upload a document:
 ```bash
@@ -84,6 +89,12 @@ Swagger/API docs:
 Health endpoint:
 
 ![Health endpoint](docs/assets/demo-health.png)
+
+## Smoke Tests
+```bash
+pip install -r requirements-dev.txt
+pytest -q
+```
 
 ## API Contracts
 - `POST /ingest` (multipart form)

@@ -1,5 +1,6 @@
 ﻿from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -20,6 +21,7 @@ class Settings(BaseSettings):
     chunk_size: int = 400
     chunk_overlap: int = 60
     retrieval_k: int = 3
+    retrieval_score_threshold: float = Field(default=0.15, ge=0.0, le=1.0)
     max_top_k: int = 10
 
 

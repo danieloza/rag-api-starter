@@ -1,7 +1,8 @@
 ﻿from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from pydantic import ValidationError
 
 from app.rag_service import RAGService
-from app.schemas import AskRequest, AskResponse, HealthResponse, IngestResponse
+from app.schemas import AskRequest, AskResponse, HealthResponse, IngestPayload, IngestResponse
 from app.settings import settings
 
 
@@ -24,21 +25,22 @@ async def ingest(
         raise HTTPException(status_code=400, detail="Provide either 'file' or non-empty 'text'.")
 
     document_text = ""
-    resolved_source = source.strip() if source else "manual"
+    resolved_source = source if source else "manual"
 
     try:
         if file is not None:
             file_bytes = await file.read()
-            document_text = file_bytes.decode("utf-8-sig", errors="ignore").strip()
-            if not document_text:
-                raise HTTPException(status_code=400, detail="Uploaded file is empty or not UTF-8 text.")
+            document_text = file_bytes.decode("utf-8-sig", errors="ignore")
             if not source:
                 resolved_source = file.filename or "upload"
         else:
-            document_text = text.strip()
+            document_text = text or ""
 
-        doc_id, total_docs, index_updated = service.ingest(text=document_text, source=resolved_source)
+        payload = IngestPayload(text=document_text, source=resolved_source)
+        doc_id, total_docs, index_updated = service.ingest(text=payload.text, source=payload.source)
         return IngestResponse(document_id=doc_id, total_documents=total_docs, index_updated=index_updated)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors()) from exc
     except HTTPException:
         raise
     except Exception as exc:
